@@ -1,0 +1,245 @@
+---
+title: "Trabalho Final de ME115"
+author: "Malcolm dos Reis, Beatriz Donatti, Bruna Morgado"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, include = T, warning = F, message = F)
+library(tidyverse) # para usar o dplyr, lubridate, readr, ggplot e o tibble
+library(patchwork) # para juntar os graficos
+library(knitr) # para usar o kable
+library(stringr)
+link <- "https://docs.google.com/spreadsheets/d/e/2PACX-1vRotp1bZ7dZzhYYDi0CAZ3ogvoh1uh3gz-_O_HHTgPhQ70RKdSq2VXiKyD6WhuOlkaBeJkXi9cftAUM/pub?gid=446164640&single=true&output=csv"
+# eu subi o banco de dados para a internet com o planilhas google, usei essa ferramenta apenas para isso
+dados <- read.csv(link)
+```
+
+# História da Natação Olímpica
+
+### Introdução
+
+A natação olímpica é uma modalidade esportiva que faz parte dos Jogos Olímpicos. Ela envolve competições de natação em diferentes estilos e distâncias e é considerada uma das modalidades mais populares e emocionantes dos Jogos Olímpicos.
+
+Neste trabalho, vamos explorar os dados da história da natação olímpica, desde 1912 (quando as mulheres puderam começar a participar da competição) até a última Olimpíada, que ocorreu em 2020 em Tóquio. Vamos explorar nosso banco de dados, analisando os rankings e dando mais importância ao nado de estilo livre, que é o mais conhecido. Além disso, levantaremos perguntas sobre o desempenho dos atletas ao longo do tempo e verificaremos se o Brasil teve bons resultados ao longo dos anos, bem como se há uma diferença significativa entre os resultados das competições masculinas e femininas.
+
+\newpage
+
+### Banco de dados
+
+O banco de dados em questão é composto por 4359 observações com 10 variáveis: Location (nome do país que sediou as Olimpíadas no ano da informação), Year (ano da Olimpíada), Distance..in.meters (distância percorrida na prova), Stroke (tipo de nado na prova), Relay (indica se é uma prova de revezamento ou individual, sendo 0 para individual e 1 para revezamento), Gender (informa o gênero do atleta, masculino ou feminino), Team (país que o atleta está representando na Olimpíada, por exemplo, BRA para Brasil), Athlete (nome do atleta que competiu), Results (tempo que o atleta demorou para completar a prova) e Rank (indica se o atleta recebeu alguma premiação nessa prova). A única variável que precisou passar por limpeza foi a dos resultados, pois os formatos de tempo não estavam padronizados.
+
+\newpage
+
+
+### Análise exploratória e análise descritiva
+
+A primeira observação que podemos tirar desse banco de dados é o ranking dos maiores ganhadores de medalhas de ouro da história, sendo liderado pelo famoso Michael Phelps, como visto abaixo:
+
+```{r rankings_atletas}
+#agrupando todas as medalhas de outro por atleta, fazendo a contagem dos atletas respetidos e selecionando os 3 maiores ganhadores
+rank_athlete <- dados %>%
+  filter(Rank == 1) %>%
+  group_by(Athlete) %>%
+  summarize(Count = n()) %>%
+  arrange(desc(Count)) %>%
+  slice_max(Count, n = 3)
+names(rank_athlete) <- c("Atleta", "Quantidade") 
+kable(rank_athlete)
+```
+
+É possível observar que 87 países já participaram dessa modalidade, sendo que 45 deles já conseguiram pelo menos uma medalha de ouro. Os 10 países mais premiados são: 
+
+```{r ranking_paises}
+#dados %>%
+#  group_by(Team) %>%
+#  summarize(Count = n()) ## para sabermos quantos paises estão participantes
+
+#mesmo raciocinio que o anterior, mas agrupando por Time, países no caso
+
+rank_team <- dados %>%
+  filter(Rank == 1) %>%
+  group_by(Team) %>%
+  summarize(Count = n()) %>%
+  arrange(desc(Count)) %>%
+  slice_max(Count, n = 10)
+
+names(rank_team) = c("País", "Quantidade")
+kable(rank_team)
+```
+
+A partir de agora, vamos explorar os 3 melhores ranqueados. Vamos verificar em quais estilos de natação estão distribuídas essas conquistas.
+
+```{r qnt_medalhas_nos_paises_rank3_por_estilo}
+#pdf("qnt_medalhas_por_estilo_rank3_paises.pdf", height = 5, width = 7)
+
+#filtrando o banco para quem tirou medalha de ouro entre os tres paises mais vencedores, agrupando-os em Time e em estilo de nado, contando-os como anteriormente, e fazendo um grafico de barras que indica quantas vitorias por estilo de nado em cada país
+
+dados %>%
+  filter(Team == "USA" | Team == "AUS" | Team == "GDR", Rank == 1) %>%
+  group_by(Stroke, Team) %>%
+  summarize(Count = n()) %>%
+  ggplot() +
+  geom_bar(aes(Team, Count, fill = Stroke), stat="identity", position = "dodge") +
+  labs(title = "Medalhas de ouro dos tres paises mais ganhadores",
+       subtitle = "Divididos por estilo de natacao",
+       x = "Paises",
+       y = "Frequencia") +
+  theme_classic() +
+  scale_fill_brewer(name="Estilo de natação", palette = "Blues")
+#dev.off()
+  
+```
+
+É possível observar que em todos os países, o estilo Freestyle (conhecido como nado livre, o mais comum de se ver na televisão) é o que mais premia seus atletas, e além disso, os Estados Unidos dominam fortemente esse estilo.
+
+Vamos observar agora, dentro desses maiores campeões, como estão distribuídas essas medalhas por distância de prova.
+
+```{r qnt_medalhas_no_nado_livre}
+#pdf("medalhas_estilo_freestyle_rank3_paises.pdf", height = 5, width = 7)
+
+#mesmo raciocinio do anterior, filtrando o ouro dos tres maiores vencedores e querendo explorar apenas o nado livre e contando quantas vitorias temos e cada modalidade por país
+
+dados %>%
+  filter(Stroke == "Freestyle", Rank == 1, Team == "USA" | Team == "AUS" | Team == "GDR") %>%
+  group_by(Gender, Distance..in.meters., Team) %>%
+  summarize(Count = n()) %>%
+  ggplot() +
+  geom_bar(aes(Team, Count, fill = Distance..in.meters.,), stat="identity", position = "dodge") +
+  labs(title = "Quantidade de medalhas de ouro no estilo Freestyle por modalidade",
+       subtitle = "Divididos por modalidade",
+       x = "Paises",
+       y = "Frequencia") +
+  theme_classic() +
+  scale_fill_brewer(name="Distância da prova", palette = "Blues")
+#dev.off()
+```
+
+Vamos explorar agora os resultados desse tipo de nado, mas apenas os de revezamento 4x200m, que é a categoria de maior prestígio nos Estados Unidos. Vamos ver a evolução deles nessa prova ao longo de todos esses anos de Olimpíadas, considerando os dois gêneros.
+
+```{r desempenho_nas_provas_4x200m_pelos_anos}
+
+## a limpeza dos resultados nessa categoria foi bem complicado
+
+res_rev <- dados %>% 
+  filter(Stroke == "Freestyle", Distance..in.meters. == "4x200", Team == "USA", Gender == "Men") ## filtro pelo estilo de nado da categoria do país e do genero que eu quero
+
+result <- res_rev$Results #pego todos os valores da coluna results e faço dele um vetor
+result <- hms(result) #modifico com o libridate, fazendo ele reconhecer as informações como hora-minuto-segundo
+result <- seconds(result) #transformo tudo em segundos, 7min vai virar 420 segundos por exemplo
+result <- str_replace_all(result, pattern = "S", replacement = "") # tiro o "S" que vem junto com essa ultima formatação para ocnseguir transformar o vetor em um vetor numerico
+result <- as.numeric(result) # transformando em vetor numerico
+
+masc <- res_rev %>%
+  mutate(Results = result) %>%  ### colocando os valores limpos no banco de volta para conseguir analisar graficamente
+  ggplot(aes(x = Year, y = Results)) +
+  geom_line(color = "#35978f", size=1, linetype = "dotted") +
+  geom_point() +
+  labs(x = "Anos",
+       y = "Tempo em segundos",
+       title = "Desempenho dos atletas a cada ano",
+       subtitle = "Genero masculino") +
+  theme_classic()
+
+## mesmas coisa para as mulheres
+
+res_rev <- dados %>% 
+  filter(Stroke == "Freestyle", Distance..in.meters. == "4x200", Team == "USA", Gender == "Women")
+
+result <- res_rev$Results
+result <- hms(result)
+result <- seconds(result)
+result <- str_replace_all(result, pattern = "S", replacement = "")
+result <- as.numeric(result)
+
+fem <- res_rev %>%
+  mutate(Results = result) %>%
+  ggplot(aes(x = Year, y = Results)) +
+  geom_line(color = "#35978f", size=1,linetype = "dotted") +
+  geom_point() +
+  labs(x = "Anos",
+       y = "Tempo em segundos",
+       title = "Desempenho das atletas a cada ano",
+       subtitle = "Genero feminino") +
+  theme_classic()
+
+#pdf("progresso_atletas_por_genero.pdf", height = 7, width = 15)
+masc + fem
+#dev.off()
+```
+
+Com isso, é possível observar a grande evolução dos atletas ao longo dos anos, visto a grande queda no tempo necessário para completar a prova. No gênero masculino, por exemplo, em 1912, o tempo necessário para completar a prova era maior que 600 segundos, enquanto nos últimos anos esse número é menor que 430 segundos.
+
+Agora que já vimos sobre o melhor país em seu melhor estilo, vamos ver qual a participação do Brasil nesse esporte.
+
+Vamos verificar quantas medalhas de ouro nossos atletas já conquistaram ao longo da história da natação olímpica.
+
+```{r medalhistas_brasileiros}
+dados_brasil <- dados %>% filter(Team == "BRA")
+
+medalhas_br <- dados_brasil %>% 
+  filter(Rank == 1 | Rank == 2 | Rank == 3) %>%
+  group_by(Team) %>%
+  summarize(Count = n())
+
+## o mesmo raciocinio da primeira tabela
+cesar <- dados_brasil %>% 
+  filter(Rank == 1) %>%
+  group_by(Athlete) %>%
+  summarize(Count = n())
+names(cesar) <- c("Atleta", "Quantidade")
+kable(cesar)
+```
+
+Bom, vemos que o Brasil não vem se destacando muito nesse tipo de campeonato, obtendo ao longo dos anos apenas uma medalha de ouro, conquistada por Cesar Cielo.
+
+Já que não temos muitas medalhas de ouro, vamos considerar todas as premiações que o Brasil já teve, incluindo medalhas de ouro, prata ou bronze, totalizando 14 medalhas em toda a história. Vamos ver em quais países sede das Olimpíadas eles conseguiram essas premiações.
+
+```{r medalhas_brasileiras_por_paises_sede}
+#pdf("medalhas_por_paises_sede.pdf", height = 7, width = 15)
+## pegando todas as medalhas do brasil e separando-as por cidade sede das olimpiadas
+dados_brasil %>% 
+  filter(Rank == 1 | Rank == 2 | Rank == 3) %>%
+  group_by(Location) %>%
+  summarize(Count = n()) %>%
+  ggplot(aes(x = Location, y = Count)) +
+  geom_bar(stat = "identity", fill = "#4575b4", width = 0.7) +
+  labs(title = "Paises em que brasileiros conquistaram o podio",
+       subtitle = "Ganhando medalha de ouro, prata ou bronze",
+       x = "Paises",
+       y = "Frequencia") +
+  theme_classic() +
+  coord_flip()
+#dev.off()
+```
+
+Dessa forma, é possível observar que em Atlanta, os atletas brasileiros tiveram melhor desempenho e conquistaram o maior número de medalhas (três).
+
+\newpage
+
+### Considerações finais
+
+Foi possível observar que, na história da natação olímpica, os Estados Unidos têm obtido mais conquistas no estilo nado livre, que é o estilo em que esse país mais conquistou vitórias. Também pudemos analisar a evolução dos atletas nesse esporte ao longo do tempo.
+
+Além disso, observamos a participação do Brasil nessa modalidade esportiva e vimos que sua influência não é tão grande, tendo conquistado apenas uma medalha de ouro ao longo dos anos.
+
+
+### Referências Bibliográficas
+
+Zhu, Hao. (2019). "Create Awesome HTML Table with knitr::kable and kableExtra." Disponível em: https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html#Overview. Acesso em: 24 de julho de 2023.
+
+Yan, Holtz. (2018). "R Color Brewer’s palettes". Disponível em: https://r-graph-gallery.com/38-rcolorbrewers-palettes.html. Acesso em: 24 de julho de 2023.
+
+Paterno, Gustavo. (2018). "Guia de Bolso: ggplot2 | Gráficos elegantes no R". Disponível em: https://paternogbc.github.io/guia_ggplot2/index.html. Acesso em: 24 de julho de 2023.
+
+Lucian, Bruno e Jakelline, Claudia. (2021). "Introdução à Análise de Dados em R". Disponível em: https://bookdown.org/bruno_lucian_costa/CursoBasicoR/. Acesso em: 26 de junho de 2023.
+
+```{r comentarios_sobre_o_rmd}
+## procuramos utilizar todos os recursos ensinados em aula, desde a importação de dados online, como o tratamento do banco, limpeza das variaveis, geração de ótimos gráficos (dentro dessa geração tem ainda muitos recursos utilizados)
+```
+
+
+
